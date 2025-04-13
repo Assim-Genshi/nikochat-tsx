@@ -3,27 +3,34 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
-  Navigate, // Import Navigate
+  Navigate,
 } from "react-router-dom";
-import { supabase } from './supabaseClient'; // Import supabase client
-import { Session } from '@supabase/supabase-js'; // Import Session type
+import { supabase } from './supabase/supabaseClient'; // Ensure correct path
+import { Session } from '@supabase/supabase-js';
+import { signOut } from './utils/auth'; // Import signOut from utils
+
 import Homepage from './pages/homepage';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
+import EmailConfirm from './pages/EmailConfirm'; // Import the new page
 
 // Example Chat component (can be moved to its own file later)
 const Chat = () => {
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    // The onAuthStateChange listener in App.tsx will handle the redirect
+    const { success } = await signOut(); // Use the signOut util
+    if (!success) {
+      // Handle potential sign out error (e.g., show a message)
+      console.error("Failed to sign out");
+    }
+     // App.tsx's state change will handle redirect
   };
 
   return (
     <div className="p-4">
        <h1 className="text-2xl mb-4">Chat Page</h1>
        <p>Welcome! You are logged in.</p>
-        <button 
-         onClick={handleLogout} 
+        <button
+         onClick={handleLogout}
          className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
        >
          Logout
@@ -35,61 +42,68 @@ const Chat = () => {
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true); // Add loading state
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-     // Check initial session
      supabase.auth.getSession().then(({ data: { session } }) => {
        setSession(session);
-       setLoading(false); // Set loading to false once session is checked
+       setLoading(false);
+     }).catch(error => {
+        console.error("Error getting initial session:", error);
+        setLoading(false); // Ensure loading stops even on error
      });
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("Auth state changed:", _event, session); // Log auth state changes
       setSession(session);
-      // If loading was true, set it to false on first auth state change too
-      if (loading) setLoading(false); 
+      if (loading) setLoading(false);
     });
 
-    // Cleanup listener on unmount
-    return () => subscription.unsubscribe();
-  }, [loading]); // Rerun effect if loading changes (though primarily runs once)
+    return () => {
+        console.log("Unsubscribing from auth changes");
+        subscription.unsubscribe();
+    };
+  }, []); // Remove loading from dependency array - only run once on mount
 
 
-   // Display a loading indicator while checking auth state
   if (loading) {
-     return <div>Loading...</div>; 
+     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
    }
 
 
   return (
     <Router>
       <Routes>
-         {/* Homepage: Redirect to login if not authenticated */}
-         <Route 
-           path="/" 
-           element={session ? <Homepage /> : <Navigate to="/login" />} 
+         {/* Public route for email confirmation */}
+         <Route path="/confirm-email" element={<EmailConfirm />} />
+
+         {/* --- Protected Routes --- */}
+         {/* Redirect to login if no session */}
+         <Route
+           path="/"
+           element={session ? <Homepage /> : <Navigate to="/login" replace />} // Added replace
          />
-         
-         {/* Chat Page: Redirect to login if not authenticated */}
-         <Route 
-           path="/chat" 
-           element={session ? <Chat /> : <Navigate to="/login" />} 
+         <Route
+           path="/chat"
+           element={session ? <Chat /> : <Navigate to="/login" replace />} // Added replace
          />
 
-         {/* Login Page: Redirect to home if already authenticated */}
-         <Route 
-           path="/login" 
-           element={!session ? <Login /> : <Navigate to="/" />} 
+         {/* --- Authentication Routes --- */}
+         {/* Redirect to home if session exists */}
+          <Route
+           path="/login"
+           element={!session ? <Login /> : <Navigate to="/" replace />} // Added replace
           />
-          
-         {/* Signup Page: Redirect to home if already authenticated */}
-         <Route 
-           path="/signup" 
-           element={!session ? <Signup /> : <Navigate to="/" />} 
+         <Route
+           path="/signup"
+           element={!session ? <Signup /> : <Navigate to="/" replace />} // Added replace
           />
+
+        {/* Optional: Catch-all for unknown routes */}
+        {/* <Route path="*" element={<Navigate to={session ? "/" : "/login"} replace />} /> */}
+
       </Routes>
     </Router>
   );

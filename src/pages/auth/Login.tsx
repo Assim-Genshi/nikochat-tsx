@@ -1,46 +1,38 @@
 import React, { useState } from 'react';
-// Remove useNavigate import if no longer needed after removing redirection
-// import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../supabaseClient'; // Make sure this path is correct
-import { Button } from "@heroui/react";
+import { signIn } from '../../utils/auth'; // Import the new auth function
+import { Button } from "@heroui/react"; // Assuming this is the correct import
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
-  // Remove navigate initialization if import is removed
-  // const navigate = useNavigate();
+  // No navigate needed here, App.tsx handles redirects based on session changes
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(''); // Clear previous errors
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
+    // Call the reusable signIn function
+    const response = await signIn(email, password);
 
-      if (error) {
-        console.error('Error logging in:', error);
-        setError(error.message || 'Failed to login'); // Display error message
-      } else if (data.user) {
-        console.log('Logged in user:', data.user);
-        // navigate('/'); // <-- Remove this line
+    setLoading(false);
+
+    if (response.success) {
+      // Login successful, App.tsx's onAuthStateChange will detect the new session and redirect.
+      console.log('Login successful, user:', response.data);
+    } else if (response.error) {
+       // Handle specific Supabase auth errors, e.g., email not confirmed
+      if (response.error.message === 'Email not confirmed') {
+           setError('Please confirm your email address before logging in.');
+           // Optionally, you could redirect to a confirmation reminder page
+           // navigate('/confirm-email'); 
       } else {
-        setError('An unexpected error occurred during login.'); // Handle unexpected scenarios
+           setError(response.error.message || 'Failed to login');
       }
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        console.error('Login process error:', error);
-        setError(error.message || 'An unexpected error occurred.');
-      } else {
-        setError('An unknown error occurred.');
-      }
-    } finally {
-      setLoading(false);
+    } else {
+       setError('An unexpected error occurred during login.');
     }
   };
 
@@ -49,7 +41,7 @@ const Login: React.FC = () => {
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
         <h2 className="text-2xl font-bold text-center text-gray-900">Sign in to your account</h2>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          <input type="hidden" name="remember" defaultValue="true" />
+          {/* Removed hidden input as it wasn't standard */}
           <div className="-space-y-px rounded-md shadow-sm">
             <div>
               <label htmlFor="email-address" className="sr-only">Email address</label>
@@ -63,6 +55,7 @@ const Login: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-none appearance-none rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
+                disabled={loading}
               />
             </div>
             <div>
@@ -77,31 +70,34 @@ const Login: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="relative block w-full px-3 py-2 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-none appearance-none rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
+                disabled={loading}
               />
             </div>
           </div>
 
-          {error && <p className="text-sm text-center text-red-600">{error}</p>}
+           {error && <p className="text-sm text-center text-red-600">{error}</p>}
 
           <div>
-            <Button
-              isLoading={loading}
-              type="submit"
-              className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md group hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              {loading ? 'Signing In...' : 'Sign In'}
-            </Button>
+             {/* Ensure the Button component prop is correct (isBusy or isLoading) */}
+              <Button 
+                 isLoading={loading} /* Assuming isBusy is correct */
+                 type="submit" 
+                 className="relative flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md group hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                 disabled={loading}
+               >
+                {loading ? 'Signing In...' : 'Sign In'}
+              </Button>
           </div>
-          <p className="mt-2 text-sm text-center text-gray-600">
-            Don't have an account yet?{' '}
-            <a href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
-              Sign up
-            </a>
-          </p>
+            <p className="mt-2 text-sm text-center text-gray-600">
+                  Don't have an account yet?{' '}
+                  <a href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+                    Sign up
+                  </a>
+                </p>
         </form>
       </div>
     </div>
   );
 };
 
-export default Login;    
+export default Login;
